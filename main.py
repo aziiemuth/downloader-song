@@ -1,28 +1,53 @@
+"""
+Script Download Lagu dari YouTube
+
+Author: athiief
+"""
+
 import os
 import sys
 import yt_dlp
 import logging
 
-# Konfigurasi logging
-logging.basicConfig(level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+# Auto-install pyfiglet jika belum terpasang
+try:
+    import pyfiglet
+except ImportError:
+    os.system('pip install pyfiglet')
+    import pyfiglet
+
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )
+
+def show_banner():
+    # Menampilkan banner Author seperti ASCII art
+    author_banner = pyfiglet.figlet_format("A T H I E F")
+    print(author_banner)
+    print("=" * 50)
+    print("     YouTube Song Downloader      ")
+    print("=" * 50)
+    print()
 
 def search_and_download_song(song_name, output_path='downloads'):
     """
     Mencari dan mendownload lagu dari YouTube
-    
+
     Args:
         song_name (str): Nama lagu yang dicari
         output_path (str): Direktori untuk menyimpan download
-    
+
     Returns:
         bool: True jika berhasil download, False jika gagal
     """
     try:
-        # Buat direktori download jika belum ada
         os.makedirs(output_path, exist_ok=True)
-        
-        # Konfigurasi yt-dlp
+
         ydl_opts = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -32,61 +57,81 @@ def search_and_download_song(song_name, output_path='downloads'):
             }],
             'prefer_ffmpeg': True,
             'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-            'default_search': 'ytsearch1:',  # Mencari video pertama
+            'default_search': 'ytsearch1:',
             'nooverwrites': True,
-            'no_warnings': False,
-            'ignoreerrors': False,
-            'no_color': True,
         }
-        
-        # Gunakan yt-dlp untuk download
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Pencarian dan download dalam satu langkah
             ydl.download([song_name])
-        
-        logging.info(f"Berhasil download lagu: {song_name}")
+
+        logging.info(f"Berhasil mendownload: {song_name}")
         return True
-    
+
     except Exception as e:
-        logging.error(f"Kesalahan saat download lagu {song_name}: {e}")
+        logging.error(f"Gagal mendownload {song_name}: {e}")
         return False
 
-def download_songs_from_list(file_path):
+def download_songs_from_list(file_name):
     """
     Download lagu dari daftar di file txt
-    
+
     Args:
-        file_path (str): Path file txt berisi daftar lagu
+        file_name (str): Nama file (tanpa .txt) berisi daftar lagu
     """
+    file_path = file_name + '.txt'
+
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             songs = [line.strip() for line in file if line.strip()]
-        
-        # Simpan log lagu yang gagal
+
+        if not songs:
+            logging.warning("File daftar lagu kosong. Tidak ada lagu untuk diproses.")
+            return False
+
+        logging.info(f"Jumlah lagu yang akan diproses: {len(songs)}")
+
         failed_songs = []
-        
-        for song in songs:
-            logging.info(f"Memproses lagu: {song}")
+
+        for idx, song in enumerate(songs, start=1):
+            logging.info(f"[{idx}/{len(songs)}] Sedang memproses: {song}")
             success = search_and_download_song(song)
-            
             if not success:
                 failed_songs.append(song)
-        
-        # Tampilkan daftar lagu yang gagal di akhir proses
+
         if failed_songs:
-            logging.warning("Lagu-lagu yang gagal didownload:")
+            logging.warning("\nLagu yang gagal diunduh:")
             for song in failed_songs:
-                logging.warning(song)
-    
+                logging.warning(f" - {song}")
+        else:
+            logging.info("Semua lagu berhasil diunduh.")
+        return True
+
     except FileNotFoundError:
         logging.error(f"File tidak ditemukan: {file_path}")
+        return False
     except Exception as e:
-        logging.error(f"Kesalahan umum: {e}")
+        logging.error(f"Terjadi kesalahan: {e}")
+        return False
 
-# Program utama dengan penanganan KeyboardInterrupt
+def main():
+    show_banner()
+
+    while True:
+        file_name = input("Masukkan nama file daftar lagu : ").strip()
+
+        if not file_name:
+            logging.error("Nama file tidak boleh kosong. Coba lagi.")
+            continue
+
+        if download_songs_from_list(file_name):
+            break
+        else:
+            logging.warning("Coba lagi dengan file yang valid.")
+
 if __name__ == "__main__":
     try:
-        # Pastikan Anda sudah membuat file list.txt dengan daftar lagu
-        download_songs_from_list('list.txt')
+        setup_logging()
+        main()
     except KeyboardInterrupt:
-        logging.warning("\nProses dihentikan oleh pengguna. Keluar dari program.")
+        logging.warning("\nProses dihentikan oleh pengguna.")
+        input("\nTekan Enter untuk keluar...")
