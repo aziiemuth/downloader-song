@@ -20,14 +20,12 @@ def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler()
-        ]
+        handlers=[logging.StreamHandler()]
     )
 
 def show_banner():
     # Menampilkan banner Author seperti ASCII art
-    author_banner = pyfiglet.figlet_format("A T H I E F")
+    author_banner = pyfiglet.figlet_format("+ A T H I I E F +")
     print(author_banner)
     print("=" * 50)
     print("     YouTube Song Downloader      ")
@@ -49,7 +47,7 @@ def search_and_download_song(song_name, output_path='downloads'):
         os.makedirs(output_path, exist_ok=True)
 
         ydl_opts = {
-            'format': 'bestaudio/best',
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -59,6 +57,10 @@ def search_and_download_song(song_name, output_path='downloads'):
             'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
             'default_search': 'ytsearch1:',
             'nooverwrites': True,
+            'noplaylist': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+            'quiet': False,
+            'no_warnings': False,
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -133,5 +135,5 @@ if __name__ == "__main__":
         setup_logging()
         main()
     except KeyboardInterrupt:
-        logging.warning("\nProses dihentikan oleh pengguna.")
+        logging.warning("\nProses dihentikan.")
         input("\nTekan Enter untuk keluar...")
