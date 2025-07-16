@@ -34,18 +34,36 @@ def show_banner():
 
 def search_and_download_song(song_name, output_path='downloads'):
     """
-    Mencari dan mendownload lagu dari YouTube
+    Mencari dan mendownload lagu dari YouTube jika belum ada
 
     Args:
         song_name (str): Nama lagu yang dicari
         output_path (str): Direktori untuk menyimpan download
 
     Returns:
-        bool: True jika berhasil download, False jika gagal
+        bool: True jika berhasil download, False jika gagal atau sudah ada
     """
     try:
         os.makedirs(output_path, exist_ok=True)
 
+        # Cari info lagu terlebih dahulu (tanpa download) untuk dapatkan judul
+        temp_ydl_opts = {
+            'default_search': 'ytsearch1:',
+            'quiet': True,
+            'skip_download': True,
+        }
+
+        with yt_dlp.YoutubeDL(temp_ydl_opts) as temp_ydl:
+            info = temp_ydl.extract_info(song_name, download=False)
+            title = info['entries'][0]['title'] if 'entries' in info else info['title']
+            output_filename = os.path.join(output_path, f"{title}.mp3")
+
+        # Cek apakah file sudah ada
+        if os.path.exists(output_filename):
+            logging.info(f"Lagu sudah ada, dilewati: {title}")
+            return True
+
+        # Kalau belum ada, lakukan download
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'postprocessors': [{
