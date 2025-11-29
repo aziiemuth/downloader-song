@@ -1,157 +1,142 @@
 """
-Script Download Lagu dari YouTube
-
-Author: athiief
+YouTube Song Downloader
+Author  : athiief
+Features: web_safari client, progress bar, silent warnings
 """
 
 import os
 import sys
-import yt_dlp
 import logging
+import subprocess
 
-# Auto-install pyfiglet jika belum terpasang
 try:
-    import pyfiglet
+    import yt_dlp
 except ImportError:
-    os.system('pip install pyfiglet')
-    import pyfiglet
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "yt-dlp"])
+    import yt_dlp
 
-def setup_logging():
+
+def setup_log():
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
+        format="%(message)s",
         handlers=[logging.StreamHandler()]
     )
 
-def show_banner():
-    # Menampilkan banner Author seperti ASCII art
-    author_banner = pyfiglet.figlet_format("+ A T H I I E F +")
-    print(author_banner)
-    print("=" * 50)
-    print("     YouTube Song Downloader      ")
-    print("=" * 50)
-    print()
 
-def search_and_download_song(song_name, output_path='downloads'):
-    """
-    Mencari dan mendownload lagu dari YouTube jika belum ada
+class QuietLogger:
+    def debug(self, msg):
+        pass
+    def warning(self, msg):
+        pass
+    def info(self, msg):
+        if msg and not str(msg).startswith("WARNING:"):
+            print(msg)
+    def error(self, msg):
+        print(msg)
 
-    Args:
-        song_name (str): Nama lagu yang dicari
-        output_path (str): Direktori untuk menyimpan download
 
-    Returns:
-        bool: True jika berhasil download, False jika gagal atau sudah ada
-    """
-    try:
-        os.makedirs(output_path, exist_ok=True)
+def progress_hook(data):
+    if data.get("status") == "downloading":
+        percent = data.get("_percent_str", "").strip()
+        speed   = data.get("_speed_str", "").strip()
+        eta     = data.get("_eta_str", "").strip()
+        print(f"\r{percent} | {speed} | ETA {eta}", end="")
+    if data.get("status") == "finished":
+        print("\nMengubah audio...")
 
-        # Cari info lagu terlebih dahulu (tanpa download) untuk dapatkan judul
-        temp_ydl_opts = {
-            'default_search': 'ytsearch1:',
-            'quiet': True,
-            'skip_download': True,
-        }
 
-        with yt_dlp.YoutubeDL(temp_ydl_opts) as temp_ydl:
-            info = temp_ydl.extract_info(song_name, download=False)
-            title = info['entries'][0]['title'] if 'entries' in info else info['title']
-            output_filename = os.path.join(output_path, f"{title}.mp3")
+def get_title(query):
+    opts = {
+        "default_search": "ytsearch1:",
+        "skip_download": True,
+        "quiet": True,
+        "logger": QuietLogger()
+    }
+    with yt_dlp.YoutubeDL(opts) as y:
+        info = y.extract_info(query, download=False)
+        if not info:
+            return query
+        if "entries" in info:
+            return info["entries"][0].get("title", query)
+        return info.get("title", query)
 
-        # Cek apakah file sudah ada
-        if os.path.exists(output_filename):
-            logging.info(f"Lagu sudah ada, dilewati: {title}")
-            return True
 
-        # Kalau belum ada, lakukan download
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]/bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'prefer_ffmpeg': True,
-            'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-            'default_search': 'ytsearch1:',
-            'nooverwrites': True,
-            'noplaylist': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-            'quiet': False,
-            'no_warnings': False,
-        }
+def download(query, out="downloads"):
+    os.makedirs(out, exist_ok=True)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([song_name])
+    title = get_title(query)
+    clean  = "".join(c for c in title if c.isalnum() or c in " ._-").strip()
+    output_file = os.path.join(out, f"{clean}.mp3")
 
-        logging.info(f"Berhasil mendownload: {song_name}")
+    if os.path.exists(output_file):
+        print(f"Sudah ada: {clean}")
         return True
 
-    except Exception as e:
-        logging.error(f"Gagal mendownload {song_name}: {e}")
-        return False
+    opts = {
+        "format": "bestaudio/best",
+        "outtmpl": os.path.join(out, "%(title)s.%(ext)s"),
+        "postprocessors": [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+            "preferredquality": "192"
+        }],
 
-def download_songs_from_list(file_name):
-    """
-    Download lagu dari daftar di file txt
+        "default_search": "ytsearch1:",
+        "noplaylist": True,
+        "quiet": True,
+        "no_warnings": True,
+        "logger": QuietLogger(),
 
-    Args:
-        file_name (str): Nama file (tanpa .txt) berisi daftar lagu
-    """
-    file_path = file_name + '.txt'
+        "extractor_args": {
+            "youtube": {"player_client": ["web_safari"]}
+        },
+
+        "progress_hooks": [progress_hook],
+        "prefer_ffmpeg": True
+    }
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as file:
-            songs = [line.strip() for line in file if line.strip()]
-
-        if not songs:
-            logging.warning("File daftar lagu kosong. Tidak ada lagu untuk diproses.")
-            return False
-
-        logging.info(f"Jumlah lagu yang akan diproses: {len(songs)}")
-
-        failed_songs = []
-
-        for idx, song in enumerate(songs, start=1):
-            logging.info(f"[{idx}/{len(songs)}] Sedang memproses: {song}")
-            success = search_and_download_song(song)
-            if not success:
-                failed_songs.append(song)
-
-        if failed_songs:
-            logging.warning("\nLagu yang gagal diunduh:")
-            for song in failed_songs:
-                logging.warning(f" - {song}")
-        else:
-            logging.info("Semua lagu berhasil diunduh.")
+        with yt_dlp.YoutubeDL(opts) as y:
+            y.download([query])
+        print(f"Berhasil: {clean}")
         return True
-
-    except FileNotFoundError:
-        logging.error(f"File tidak ditemukan: {file_path}")
-        return False
     except Exception as e:
-        logging.error(f"Terjadi kesalahan: {e}")
+        print(f"Error saat download: {e}")
         return False
+
+
+def load_list(file_name):
+    path = file_name + ".txt"
+
+    if not os.path.exists(path):
+        print("File tidak ditemukan:", path)
+        return
+
+    with open(path, "r", encoding="utf-8") as file:
+        items = [i.strip() for i in file if i.strip()]
+
+    print("Total lagu:", len(items))
+
+    for i, q in enumerate(items, 1):
+        print(f"\n[{i}/{len(items)}] {q}")
+        download(q)
+
+    print("\nSelesai semua.")
+
 
 def main():
-    show_banner()
+    setup_log()
+    print("YouTube Downloader by athiief\n")
 
-    while True:
-        file_name = input("Masukkan nama file daftar lagu : ").strip()
+    file_name = input("Nama file daftar lagu (.txt tidak perlu ditulis): ").strip()
+    if not file_name:
+        print("Nama file tidak boleh kosong.")
+    else:
+        load_list(file_name)
 
-        if not file_name:
-            logging.error("Nama file tidak boleh kosong. Coba lagi.")
-            continue
+    input("\nTekan apa saja untuk keluar...")
 
-        if download_songs_from_list(file_name):
-            break
-        else:
-            logging.warning("Coba lagi dengan file yang valid.")
 
 if __name__ == "__main__":
-    try:
-        setup_logging()
-        main()
-    except KeyboardInterrupt:
-        logging.warning("\nProses dihentikan.")
-        input("\nTekan Enter untuk keluar...")
+    main()
