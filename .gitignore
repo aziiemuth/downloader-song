@@ -1,0 +1,11 @@
+# Ignore downloaded audio files
+downloads/
+
+# Python caching and build directories
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
